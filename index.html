@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Host</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Tahoma,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;padding:15px;color:#333}
+  .box{max-width:700px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 15px 50px rgba(0,0,0,.3);overflow:hidden}
+  .head{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;padding:25px;text-align:center}
+  .head h1{font-size:22px;margin-bottom:6px}
+  .head p{font-size:13px;opacity:.9}
+  .body{padding:20px}
+  .msg{padding:12px;border-radius:8px;margin-bottom:15px;font-size:13px}
+  .err{background:#fee;color:#c33}
+  .ok{background:#efe;color:#2a7}
+  .linkbox{background:#f5f5ff;border:2px dashed #7c3aed;padding:15px;border-radius:10px;margin-bottom:15px}
+  .linkbox label{font-size:12px;color:#666;display:block;margin-bottom:6px}
+  .linkbox input{width:100%;padding:10px;font-size:13px;border:2px solid #7c3aed;border-radius:6px;background:#fff;color:#4f46e5;font-weight:bold;direction:ltr;text-align:center}
+  .btns{display:flex;gap:8px;margin-top:8px}
+  .btns a,.btns button{flex:1;padding:9px;border:none;border-radius:6px;cursor:pointer;text-align:center;font-size:13px;font-family:inherit;text-decoration:none}
+  .b1{background:#4f46e5;color:#fff}
+  .b2{background:#e0e7ff;color:#4f46e5}
+  label.main{display:block;font-weight:bold;font-size:13px;margin-bottom:6px;color:#444}
+  textarea{width:100%;padding:12px;font-size:13px;border:2px solid #e0e0e0;border-radius:8px;font-family:monospace;outline:none;min-height:250px;resize:vertical;direction:ltr;text-align:left}
+  textarea:focus{border-color:#7c3aed}
+  .sample{background:#f0f0f0;color:#555;padding:6px 12px;border:none;border-radius:5px;font-size:11px;cursor:pointer;margin-top:6px;font-family:inherit}
+  .submit{width:100%;padding:14px;font-size:15px;font-weight:bold;color:#fff;cursor:pointer;background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;border-radius:8px;margin-top:15px;font-family:inherit}
+  .submit:disabled{opacity:.6;cursor:not-allowed}
+  .load{display:none;text-align:center;padding:15px;color:#666;font-size:13px}
+  .load.show{display:block}
+  .spin{display:inline-block;width:20px;height:20px;border:3px solid #e0e0e0;border-top-color:#7c3aed;border-radius:50%;animation:s .8s linear infinite;margin-bottom:8px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .foot{text-align:center;padding:15px;font-size:12px;color:#999;border-top:1px solid #eee}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="head">
+    <h1>🚀 HTML Host</h1>
+    <p>کد HTML رو پیست کن، لینک کوتاه بگیر!</p>
+  </div>
+  <div class="body">
+    <div id="alert"></div>
+    
+    <div id="linkBox" class="linkbox" style="display:none">
+      <label>🔗 لینک کوتاه تو:</label>
+      <input type="text" id="resultLink" readonly onclick="this.select()">
+      <div class="btns">
+        <button class="b2" onclick="copyLink(event)">📋 کپی</button>
+        <a id="viewBtn" href="#" target="_blank" class="b1">👁️ مشاهده</a>
+      </div>
+    </div>
+    
+    <form id="form">
+      <label class="main">📝 کد HTML رو اینجا پیست کن:</label>
+      <textarea id="htmlCode" placeholder="<!DOCTYPE html>
+<html>
+<head><title>صفحه من</title></head>
+<body>
+  <h1>سلام دنیا! 👋</h1>
+</body>
+</html>" required></textarea>
+      <button type="button" class="sample" onclick="fillSample()">✨ نمونه</button>
+      <button type="submit" class="submit" id="submitBtn">🚀 ساخت لینک کوتاه</button>
+    </form>
+    
+    <div class="load" id="loading">
+      <div class="spin"></div>
+      <div>در حال ساخت لینک...</div>
+    </div>
+  </div>
+  <div class="foot">حداکثر ۵۰۰ کیلوبایت | لینک خودکار کوتاه می‌شه</div>
+</div>
+
+<script>
+// ============================================
+// 🚀 هیچ تنظیمی نمی‌خواد!
+// کد HTML به Base64 تبدیل می‌شه و به TinyURL فرستاده می‌شه
+// ============================================
+
+function showMsg(type, text) {
+  const icons = {err:'❌', ok:'✅'};
+  document.getElementById('alert').innerHTML = 
+    `<div class="msg ${type}">${icons[type]} ${text}</div>`;
+}
+
+// فشرده‌سازی به Base64 (پشتیبانی از فارسی)
+function encode(html) {
+  return btoa(unescape(encodeURIComponent(html)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function decode(str) {
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  return decodeURIComponent(escape(atob(str)));
+}
+
+// کوتاه کردن لینک با TinyURL (بدون ثبت‌نام، رایگان)
+async function shortenUrl(longUrl) {
+  try {
+    const res = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(longUrl));
+    if (res.ok) {
+      const shortUrl = await res.text();
+      if (shortUrl.startsWith('http')) return shortUrl;
+    }
+  } catch(e) {}
+  return longUrl; // اگه نشد، لینک اصلی
+}
+
+document.getElementById('form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  
+  const html = document.getElementById('htmlCode').value.trim();
+  const btn = document.getElementById('submitBtn');
+  const loading = document.getElementById('loading');
+  
+  if (!html) { showMsg('err', 'کد HTML رو وارد کن!'); return; }
+  if (html.length > 512000) { showMsg('err', 'حجم زیاده! حداکثر ۵۰۰ کیلوبایت.'); return; }
+  
+  btn.disabled = true;
+  loading.classList.add('show');
+  document.getElementById('linkBox').style.display = 'none';
+  document.getElementById('alert').innerHTML = '';
+  
+  try {
+    // فشرده‌سازی کد HTML
+    const encoded = encode(html);
+    
+    // ساخت لینک طولانی روی خود سایت
+    const base = window.location.origin + window.location.pathname;
+    const longLink = base + '?p=' + encoded;
+    
+    // کوتاه کردن با TinyURL
+    loading.querySelector('div:last-child').textContent = 'در حال کوتاه کردن لینک...';
+    const shortLink = await shortenUrl(longLink);
+    
+    // نمایش
+    document.getElementById('resultLink').value = shortLink;
+    document.getElementById('viewBtn').href = longLink; // مشاهده همیشه از لینک اصلی
+    document.getElementById('linkBox').style.display = 'block';
+    showMsg('ok', 'لینک کوتاه ساخته شد! کپی کن و بفرست.');
+    document.getElementById('htmlCode').value = '';
+  } catch (err) {
+    showMsg('err', 'خطا: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    loading.classList.remove('show');
+    loading.querySelector('div:last-child').textContent = 'در حال ساخت لینک...';
+  }
+});
+
+function copyLink(e) {
+  const input = document.getElementById('resultLink');
+  input.select();
+  navigator.clipboard.writeText(input.value);
+  const btn = e.target;
+  btn.textContent = '✅ شد!';
+  setTimeout(() => btn.textContent = '📋 کپی', 1500);
+}
+
+function fillSample() {
+  document.getElementById('htmlCode').value = `<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>صفحه من</title>
+<style>
+body{font-family:Tahoma;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;display:flex;align-items:center;justify-content:center;margin:0}
+.card{background:#fff;padding:40px;border-radius:20px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+h1{color:#4f46e5}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>🎉 سلام دنیا!</h1>
+<p>این صفحه‌ی منه!</p>
+</div>
+</body>
+</html>`;
+}
+
+// ============ نمایش صفحه ذخیره شده ============
+window.addEventListener('DOMContentLoaded', function() {
+  const params = new URLSearchParams(window.location.search);
+  const encoded = params.get('p');
+  
+  if (!encoded) return;
+  
+  try {
+    const html = decode(encoded);
+    document.open();
+    document.write(html);
+    document.close();
+  } catch (err) {
+    document.body.innerHTML = '<div style="text-align:center;padding:50px;color:#fff;font-family:Tahoma">❌ لینک خرابه یا ناقصه</div>';
+  }
+});
+</script>
+</body>
+</html>
